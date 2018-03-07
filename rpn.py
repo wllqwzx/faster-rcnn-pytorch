@@ -29,17 +29,22 @@ class rpn(nn.Module):
         batch, _, feature_height, feature_width = feature_map.shape
         image_height, image_width = image_size[0], image_size[1]
 
-        feature_stride = image_height / feature_height  # eg: = 16
+        # feature_stride = image_height / feature_height  # eg: = 16
 
         mid_representation = F.relu(self.mid_layer(feature_map))    # [batch, mid_channel, feature_height, feature_width]
-        deltas = self.delta_layer(mid_representation)   # [batch, 4K, feature_height, feature_width]
-        probs = self.prob_layer(mid_representation)     # [batch, 2K, feature_height, feature_width]
+        
+        deltas = self.delta_layer(mid_representation)   # [batch=1, 4K, feature_height, feature_width]
+        deltas = deltas.permute(0,2,3,1).view([feature_height, feature_width, self.K, 4])
+        
+        probs = self.prob_layer(mid_representation)     # [batch=1, 2K, feature_height, feature_width]
+        probs = probs.permute(0,2,3,1).view([feature_height, feature_width, self.K, 2])
 
         anchors = _generate_anchors(self.ratio, self.anchor_size, feature_height, feature_width, image_size)    # [feature_height, feature_width, K, 4]
 
-        # anchor format: [xmin, ymin, xmax, ymax];  bbox(roi) format: 
-        rois = _adjust_anchors_to_bbox(anchors, deltas)
-        # rois = roi_filter(...)
+        # anchor, roi, bbox format: [xmin, ymin, xmax, ymax]; delta format: dx,dy,dh,dw
+        rois = _adjust_anchors_to_rois(anchors, deltas) #[feature_height, feature_width, K, 4]
+        
+        rois = _roi_filter(rois, probs)
 
 def _generate_anchors(ratio, anchor_size, feature_height, feature_width, image_size):
     anchor_base = []
@@ -66,6 +71,27 @@ def _generate_anchors(ratio, anchor_size, feature_height, feature_width, image_s
     return anchors  # default shape: [feature_height, feature_width, 9, 4]
 
 
-def _adjust_anchors_to_bbox(anchors, deltas):
-    pass
+def _adjust_anchors_to_rois(anchors, deltas):
+    assert anchors.shape == deltas.shape
+    feature_height, feature_width, K, _ = anchors.shape
+    anchors_h = anchors[:,:,:,2::4] - anchors[:,:,:,0]  #[feature_height, feature_width, 9]
+    anchors_w = anchors[:,:,:,3] - anchors[:,:,:,1]     #[feature_height, feature_width, 9]
+    anchors_x = anchors[:,:,:,0] + anchors_h/2          #[feature_height, feature_width, 9]
+    anchors_y = anchors[:,:,:,1] + anchors_w/2          #[feature_height, feature_width, 9]
 
+    rois_x = anchors_x + anchors_h*deltas[:,:,:,0]  #[feature_height, feature_width, 9]
+    rois_y = anchors_y + anchors_w*deltas[:,:,:,1]  #[feature_height, feature_width, 9]
+    rois_h = anchors_h / torch.exp(deltas[:,:,:,2]) #[feature_height, feature_width, 9]
+    rois_w = anchors_w / torch.exp(deltas[:,:,:,3]) #[feature_height, feature_width, 9]
+
+    rois_x_min = (rois_x - rois_h / 2).view([feature_height, feature_width, K, 1])  #[feature_height, feature_width, 9, 1]
+    rois_y_min = (rois_y - rois_w / 2).view([feature_height, feature_width, K, 1])  #[feature_height, feature_width, 9, 1]
+    rois_x_max = (rois_x + rois_h / 2).view([feature_height, feature_width, K, 1])  #[feature_height, feature_width, 9, 1]
+    rois_y_max = (rois_y + rois_w / 2).view([feature_height, feature_width, K, 1])  #[feature_height, feature_width, 9, 1]
+    
+    rois = torch.cat([rois_x_min, rois_y_min, rois_x_max, rois_y_max], dim=3)   #[feature_height, feature_width, 9, 4]
+    return rois
+
+def _roi_filter(rois, probs):
+    # TODO
+    return rois
