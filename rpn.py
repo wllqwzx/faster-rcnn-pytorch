@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.autograd import Variable
 import math
 import numpy as np
 
@@ -20,8 +21,8 @@ class rpn(nn.Module):
     def forward(self, feature_map, image_size):
         """
         TODO: batch size are fixed to one, will be generalized later!
-        * **feature_map** : shape `[batch=1, channel, height, width]`
-        * **image_size** : shape `[2]`
+        * **feature_map** : type `Variable`, shape `[batch=1, channel, height, width]`
+        * **image_size** : type `ndarray`, shape `[2]`
         """
         if feature_map.shape[0] != 1:
             print("batch size should be 1")
@@ -29,22 +30,23 @@ class rpn(nn.Module):
         batch, _, feature_height, feature_width = feature_map.shape
         image_height, image_width = image_size[0], image_size[1]
 
-        # feature_stride = image_height / feature_height  # eg: = 16
-
         mid_representation = F.relu(self.mid_layer(feature_map))    # [batch, mid_channel, feature_height, feature_width]
         
-        deltas = self.delta_layer(mid_representation)   # [batch=1, 4K, feature_height, feature_width]
+        deltas = self.delta_layer(mid_representation)   # Variable; [batch=1, 4K, feature_height, feature_width]
         deltas = deltas.permute(0,2,3,1).view([feature_height, feature_width, self.K, 4])
         
-        probs = self.prob_layer(mid_representation)     # [batch=1, 2K, feature_height, feature_width]
+        probs = self.prob_layer(mid_representation)     # Variable; [batch=1, 2K, feature_height, feature_width]
         probs = probs.permute(0,2,3,1).view([feature_height, feature_width, self.K, 2])
 
-        anchors = _generate_anchors(self.ratio, self.anchor_size, feature_height, feature_width, image_size)    # [feature_height, feature_width, K, 4]
-
-        # anchor, roi, bbox format: [xmin, ymin, xmax, ymax]; delta format: dx,dy,dh,dw
-        rois = _adjust_anchors_to_rois(anchors, deltas) #[feature_height, feature_width, K, 4]
+        # ndarray; [feature_height, feature_width, K, 4]
+        anchors = _generate_anchors(self.ratio, self.anchor_size, feature_height, feature_width, image_size)
+        anchors = Variable(torch.from_numpy(anchors), requires_grad=False)   # transform anchors to Variable
         
-        rois = _roi_filter(rois, probs)
+        # anchor, roi, bbox     format: [xmin, ymin, xmax, ymax]; 
+        # delta                 format: dx,dy,dh,dw
+        rois = _adjust_anchors_to_rois(anchors, deltas) # type: Variable; [feature_height, feature_width, K, 4]
+        
+        rois = _roi_filter(rois, probs) # type: Variable; [num_left_rois, K, 4]
 
 def _generate_anchors(ratio, anchor_size, feature_height, feature_width, image_size):
     anchor_base = []
@@ -68,11 +70,14 @@ def _generate_anchors(ratio, anchor_size, feature_height, feature_width, image_s
             shift = [x,y,x,y]
             anchors[i, j] = anchor_base+shift
 
-    return anchors  # default shape: [feature_height, feature_width, 9, 4]
+    return anchors  # type: ndarray; default shape: [feature_height, feature_width, 9, 4]
 
 
 def _adjust_anchors_to_rois(anchors, deltas):
     assert anchors.shape == deltas.shape
+    assert isinstance(anchors, Variable)
+    assert isinstance(deltas, Variable)
+
     feature_height, feature_width, K, _ = anchors.shape
     anchors_h = anchors[:,:,:,2::4] - anchors[:,:,:,0]  #[feature_height, feature_width, 9]
     anchors_w = anchors[:,:,:,3] - anchors[:,:,:,1]     #[feature_height, feature_width, 9]
@@ -93,5 +98,7 @@ def _adjust_anchors_to_rois(anchors, deltas):
     return rois
 
 def _roi_filter(rois, probs):
+    assert isinstance(rois, Variable)
+    assert isinstance(probs, Variable)
     # TODO
     return rois
