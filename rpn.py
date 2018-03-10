@@ -46,7 +46,8 @@ class rpn(nn.Module):
         # delta                 format: dx,dy,dh,dw
         rois = _adjust_anchors_to_rois(anchors, deltas) # type: Variable; [feature_height, feature_width, K, 4]
         
-        rois = _roi_filter(rois, probs) # type: Variable; [num_left_rois, K, 4]
+        rois = _roi_filter(rois, probs) # type: Variable; [num_left_rois, 4]
+        return rois
 
 def _generate_anchors(ratio, anchor_size, feature_height, feature_width, image_size):
     anchor_base = []

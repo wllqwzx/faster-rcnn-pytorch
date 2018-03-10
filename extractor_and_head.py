@@ -50,8 +50,8 @@ class _VGG16Head(nn.Module):
         * **feature_map** : type `Variable`, shape `[batch=1, channel, height, width]`
         * **rois** : type Variable, shape: `[num_left_rois, K, 4]`
         """
-        roipool_out = self.roi_pooling(feature_map, rois)       # shape???
-        roipool_out = roipool_out.view(roipool_out.size(0), -1) #[num_left_rois, roip_size*roip_size*channel=25088]
+        roipool_out = self.roi_pooling(feature_map, rois)       # [num_left_rois, channel, roip_size, roip_size]
+        roipool_out = roipool_out.view(roipool_out.size(0), -1) # [num_left_rois, roip_size*roip_size*channel=25088]
         mid_output = self.classifier(roipool_out)   # [num_left_rois, 4096]
         delta = self.delta(mid_output)  # [num_left_rois, n_class_bg*4]
         prob = self.prob(mid_output)    # [num_left_rois, n_class_bg]
