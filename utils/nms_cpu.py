@@ -7,25 +7,28 @@
 
 import numpy as np
 
-def py_cpu_nms(rois, scores, thresh):
+def py_cpu_nms(roi, thresh, prob=None):
     """Pure Python NMS baseline.
-    rois: (N, 4)
-    scores: (N,)
+    roi: (N, 4)
+    prob: (N,)
     """
     #---------- debug
-    assert isinstance(rois, np.ndarray)
-    assert isinstance(scores, np.ndarray)
-    assert len(rois.shape) == 2
-    assert len(scores.shape) == 1
+    assert isinstance(roi, np.ndarray)
+    assert prob == None or isinstance(prob, np.ndarray)
+    assert len(roi.shape) == 2
+    assert prob == None or len(prob.shape) == 1
 
     #----------
-    x1 = rois[:, 0]
-    y1 = rois[:, 1]
-    x2 = rois[:, 2]
-    y2 = rois[:, 3]
+    x1 = roi[:, 0]
+    y1 = roi[:, 1]
+    x2 = roi[:, 2]
+    y2 = roi[:, 3]
 
     areas = (x2 - x1 + 1) * (y2 - y1 + 1)
-    order = scores.argsort()[::-1]
+    if prob == None:    # roi are already sorted for large to small
+        order = np.arange(roi.shape[0])
+    else:               # roi are not sorted
+        order = prob.argsort()[::-1]
 
     keep = []
     while order.size > 0:
@@ -39,9 +42,20 @@ def py_cpu_nms(rois, scores, thresh):
         w = np.maximum(0.0, xx2 - xx1 + 1)
         h = np.maximum(0.0, yy2 - yy1 + 1)
         inter = w * h
-        ovr = inter / (areas[i] + areas[order[1:]] - inter)
+        iou = inter / (areas[i] + areas[order[1:]] - inter)
 
-        inds = np.where(ovr <= thresh)[0]
+        inds = np.where(iou <= thresh)[0]
         order = order[inds + 1]
 
-    return keep
+    return keep # list of index of kept roi
+
+if __name__ == "__main__":
+    roi = np.array([
+        [1,1,50,50],
+        [1,1,48,48],
+        [1,1,20,20],
+        [50,50,100,100]
+    ])
+    res = py_cpu_nms(roi, 0.7)
+    assert res == [0,2,3]
+    print("py_cpu_nms passed!")
