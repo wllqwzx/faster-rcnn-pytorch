@@ -67,7 +67,26 @@ def bbox2delta(src_bbox, dst_bbox):
 
 
 def bbox_iou(bbox1, bbox2):
-    
+    """
+    bbox1: (N1, 4)
+    bbox2: (N2, 4)
+    return iou: (N1,N2)
+    """
+    #----------debug
+    assert isinstance(bbox1, np.ndarray)
+    assert isinstance(bbox2, np.ndarray)
+    assert len(bbox1.shape) == len(bbox2.shape) == 2
+    assert bbox1.shape[1] == bbox2.shape[1] == 4
+    #----------
+    top_left = np.maximum(bbox1[:,None,:2], bbox2[:,:2])        # (N1,N2,2)
+    bottom_right = np.minimum(bbox1[:,None,2:], bbox2[:,2:])    # (N1,N2,2)
+
+    area_inter = np.prod(bottom_right-top_left,axis=2) * (top_left < bottom_right).all(axis=2)  # (N1,N2)
+    area_1 = np.prod(bbox1[:,2:]-bbox1[:,:2], axis=1)   # (N1,)
+    area_2 = np.prod(bbox2[:,2:]-bbox2[:,:2], axis=1)   # (N2,)
+    iou = area_inter / (area_1[:,None] + area_2 - area_inter)   # (N1, N2)
+    return iou
+
 
 
 if __name__ == '__main__':
@@ -75,10 +94,19 @@ if __name__ == '__main__':
     delta = np.random.randn(2500,4)
     dst_bbox = delta2bbox(src_bbox, delta)
     assert dst_bbox.shape == src_bbox.shape
-    print("delta2bbox passed")
+    print("delta2bbox passed!")
 
     src_bbox = np.random.random((2500, 4)) + [0,0,1,1]
     dst_bbox = np.random.random((2500, 4)) + [0,0,1,1]
     delta = bbox2delta(src_bbox, dst_bbox)
     assert delta.shape == src_bbox.shape
-    print("bbox2delta passed")
+    print("bbox2delta passed!")
+
+    bbox1 = np.random.random((2500, 4)) + [0,0,1,1]
+    bbox2 = np.random.random((1500, 4)) + [0,0,1,1]
+    iou = bbox_iou(bbox1, bbox2)
+    assert iou.shape == (2500, 1500)
+    bbox1 = np.array([[0,0,50,50],[50,0,100,50]])
+    bbox2 = np.array([[25,25,50,50]])
+    assert (bbox_iou(bbox1,bbox2) == [[0.25],[0]]).all()
+    print("bbox_iou passed!")
