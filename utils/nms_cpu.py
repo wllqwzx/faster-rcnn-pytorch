@@ -25,7 +25,7 @@ def py_cpu_nms(roi, thresh, prob=None):
     y2 = roi[:, 3]
 
     areas = (x2 - x1 + 1) * (y2 - y1 + 1)
-    if prob == None:    # roi are already sorted for large to small
+    if prob == None:    # roi are already sorted in large --> small order
         order = np.arange(roi.shape[0])
     else:               # roi are not sorted
         order = prob.argsort()[::-1]

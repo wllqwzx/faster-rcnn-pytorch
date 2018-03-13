@@ -4,7 +4,7 @@ from bbox_tools import bbox2delta
 
 class AnchorTargetCreator(object):
     """
-    This will be used only in training phase to build rpn's loss function.
+    This class will be used only in training phase to build rpn's loss function.
 
     Args:
         n_sample (int): The number of anchers to sample.
@@ -101,8 +101,8 @@ class AnchorTargetCreator(object):
         #---------- debug
         assert len(bbox_index_for_anchor.shape) == len(label.shape) == 1
         assert bbox_index_for_anchor.shape[0] == label.shape[0] == anchor.shape[0]
-        # print(np.sum(label == 1)) # change anchor generate parameter, if neg sample 
-        # print(np.sum(label == 0)) # and pos sample are not roughly equal tp n_sample/2
+        # print(np.sum(label == 1)) # change anchor generate parameter, if neg samples 
+        # print(np.sum(label == 0)) # and pos samples are not roughly equal to n_sample/2
         assert np.sum(label == 0) + np.sum(label == 1) <= self.n_sample
         #---------- debug
         
