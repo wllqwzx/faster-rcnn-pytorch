@@ -1,72 +1,78 @@
 import torch
 import torch.nn as nn
-import torch.autograd as ag
-import math
-
-from torch.autograd.function import Function
-from torch._thnn import type2backend
-
-class AdaptiveMaxPool2d(Function):
-    def __init__(self, out_w, out_h):
-        super(AdaptiveMaxPool2d, self).__init__()
-        self.out_w = out_w
-        self.out_h = out_h
-
-    def forward(self, input):
-        output = input.new()
-        indices = input.new().long()
-        self.save_for_backward(input)
-        self.indices = indices
-        self._backend = type2backend[type(input)]
-        self._backend.SpatialAdaptiveMaxPooling_updateOutput(
-                self._backend.library_state, input, output, indices,
-                self.out_w, self.out_h)
-        return output
-
-    def backward(self, grad_output):
-        (input, ) = self.saved_tensors
-        indices = self.indices
-        grad_input = grad_output.new()
-        self._backend.SpatialAdaptiveMaxPooling_updateGradInput(
-                self._backend.library_state, input, grad_output, grad_input,
-                indices)
-        return grad_input, None
+from torch.autograd import Variable
+import numpy as np
 
 
-def adaptive_max_pool(input, size):
-    return AdaptiveMaxPool2d(size[0],size[1])(input)
+class RoIPool(nn.Module):
+    def __init__(self, pooled_height, pooled_width, spatial_scale=1.0):
+        super(RoIPool, self).__init__()
+        self.pooled_width = int(pooled_width)
+        self.pooled_height = int(pooled_height)
+        self.spatial_scale = float(spatial_scale)
 
+    def forward(self, features, rois):
+        """
+        Args:
+            features: (N=1, C, H, W)
+            rois: (N, 5); 5=[roi_index, x1, y1, x2, y2]
+        """
+        batch_size, num_channels, data_height, data_width = features.size()
+        num_rois = rois.size()[0]
+        outputs = Variable(torch.zeros(num_rois, num_channels, self.pooled_height, self.pooled_width))
+        if torch.cuda.is_available():
+            outputs.cuda()
 
-def roi_pooling(input, rois, size=(7,7), spatial_scale=1.0):
-    """
-    input: (N=1,C,H,W)
-    rois:  (N_rois, 5); 5 = [im_index=0, x1, y1, x2, y2]
-    """
-    assert(rois.dim() == 2)
-    assert(rois.size(1) == 5)
-    assert(input.shape[0] == 1)
-    output = []
-    rois = rois.data.float()
-    num_rois = rois.size(0)
-    
-    rois[:,1:].mul_(spatial_scale)  # transform rois from image scale to feature_map scale
-    rois = rois.long()              # float type -> long type
-    for i in range(num_rois):
-        roi = rois[i]
-        im_idx = roi[0]
-        im = input.narrow(0, im_idx, 1)[..., roi[2]:(roi[4]+1), roi[1]:(roi[3]+1)]
-        output.append(adaptive_max_pool(im, size))
+        for roi_ind, roi in enumerate(rois):
+            batch_ind = int(roi[0].data[0])
+            roi_start_w, roi_start_h, roi_end_w, roi_end_h = np.round(
+                roi[1:].data.cpu().numpy() * self.spatial_scale).astype(int)
+            roi_width = max(roi_end_w - roi_start_w + 1, 1)
+            roi_height = max(roi_end_h - roi_start_h + 1, 1)
+            bin_size_w = float(roi_width) / float(self.pooled_width)
+            bin_size_h = float(roi_height) / float(self.pooled_height)
 
-    return torch.cat(output, 0)     # [num_left_rois, channel, roip_size, roip_size]
+            for ph in range(self.pooled_height):
+                hstart = int(np.floor(ph * bin_size_h))
+                hend = int(np.ceil((ph + 1) * bin_size_h))
+                hstart = min(data_height, max(0, hstart + roi_start_h))
+                hend = min(data_height, max(0, hend + roi_start_h))
+                for pw in range(self.pooled_width):
+                    wstart = int(np.floor(pw * bin_size_w))
+                    wend = int(np.ceil((pw + 1) * bin_size_w))
+                    wstart = min(data_width, max(0, wstart + roi_start_w))
+                    wend = min(data_width, max(0, wend + roi_start_w))
+
+                    is_empty = (hend <= hstart) or(wend <= wstart)
+                    if is_empty:
+                        outputs[roi_ind, :, ph, pw] = 0
+                    else:
+                        data = features[batch_ind]
+
+                        TEMP = torch.max(data[:, hstart:hend, wstart:wend], 1)[0]
+                        outputs[roi_ind, :, ph, pw] = torch.max(TEMP, 1)[0].view(-1)
+        #---------- debug
+        assert outputs.shape[0] == rois.shape[0]
+        assert outputs.shape[1] == features.shape[1]
+        assert outputs.shape[2] == self.pooled_height
+        assert outputs.shape[3] == self.pooled_width
+        #---------- debug
+        return outputs
+
+#-----
 
 if __name__ == '__main__':
-    input = ag.Variable(torch.rand(1,512,50,50), requires_grad=True)
-    rois = ag.Variable(torch.LongTensor([[0,1,2,7,8],[0,3,3,8,8],[0,1,2,7,8],[0,3,3,8,8],[0,1,2,7,8],[0,3,3,8,8]]),requires_grad=False)
-    print(input.shape)
+    feature_map = Variable(torch.ones(1,1,80,80), requires_grad=False)
+    feature_map[0,0,1,1] = 2
+    feature_map[0,0,1,70] = 3
+    feature_map[0,0,70,1] = 4
+    feature_map[0,0,70,70] = 5
+    rois = Variable(torch.LongTensor([[0,0,0,75,75], [0,0,0,20,20]]),requires_grad=False)
+    print(feature_map.shape)
     print(rois.shape)
-    out = adaptive_max_pool(input,(7,7))
-    out.backward(out.data.clone().uniform_())
 
-    out = roi_pooling(input, rois, size=(7,7))
-    out.backward(out.data.clone().uniform_())
+    roip = RoIPool(2,2)
+    out = roip(feature_map, rois)
+    print(out)
     print(out.shape)
+
