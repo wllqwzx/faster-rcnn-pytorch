@@ -32,8 +32,10 @@ class AdaptiveMaxPool2d(Function):
                 indices)
         return grad_input, None
 
+
 def adaptive_max_pool(input, size):
     return AdaptiveMaxPool2d(size[0],size[1])(input)
+
 
 def roi_pooling(input, rois, size=(7,7), spatial_scale=1.0):
     """

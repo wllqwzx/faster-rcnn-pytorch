@@ -38,6 +38,7 @@ class ProposalCreator(object):
             n_pre_nms = self.n_test_pre_nms
             n_post_nms = self.n_test_post_nms
         
+        # 1. clip the roi into the size of image
         roi = delta2bbox(anchor, delta)
         roi[:,slice(0,4,2)] = np.clip(roi[:,slice(0,4,2)], a_min=0, a_max=image_size[0])
         roi[:,slice(1,4,2)] = np.clip(roi[:,slice(1,4,2)], a_min=0, a_max=image_size[1])
@@ -61,6 +62,7 @@ class ProposalCreator(object):
         roi = roi[keep,:]
 
         return roi
+
 
 if __name__ == '__main__':
     proposal_creater = ProposalCreator()
