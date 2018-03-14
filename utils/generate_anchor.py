@@ -32,7 +32,7 @@ def generate_anchor(feature_height, feature_width, image_size, ratio=[0.5, 1, 2]
     assert anchors.shape[0] == feature_height*feature_width*len(ratio)*len(anchor_size)
     assert anchors.shape[1] == 4
     #----------
-    return anchors  # type: ndarray; default shape: [feature_height, feature_width, 9, 4]
+    return anchors
 
 
 if __name__ == '__main__':
