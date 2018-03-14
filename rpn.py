@@ -8,12 +8,14 @@ import numpy as np
 from utils.generate_anchor import generate_anchor
 from utils.proposal_creator import ProposalCreator
 from utils.anchor_target_creator import AnchorTargetCreator
-
+from utils.loss import delta_loss
 
 class rpn(nn.Module):
     def __init__(self, in_channel, mid_channel, ratio=[0.5, 1, 2], anchor_size = [128, 256, 512]):
         super(rpn, self).__init__()
 
+        self.ratio = ratio
+        self.anchor_size = anchor_size
         self.K = len(ratio)*len(anchor_size)    # default: 9 : 9 ahcnors per spatial channel in feature maps
 
         self.mid_layer = nn.Conv2d(in_channel, mid_channel, kernel_size=3, stride=1, padding=1) 
@@ -39,10 +41,10 @@ class rpn(nn.Module):
         mid_features = F.relu(self.mid_layer(features))
         
         delta = self.delta_layer(mid_features)
-        delta = delta.permute(0,2,3,1).view([feature_height*feature_width*self.K, 4])
+        delta = delta.permute(0,2,3,1).contiguous().view([feature_height*feature_width*self.K, 4])
         
         prob = F.softmax(self.prob_layer(mid_features))
-        prob = prob.permute(0,2,3,1).view([feature_height*feature_width*self.K, 2])
+        prob = prob.permute(0,2,3,1).contiguous().view([feature_height*feature_width*self.K, 2])
 
         # ndarray: (feature_height*feature_width*K, 4)
         anchor = generate_anchor(feature_height, feature_width, image_size, self.ratio, self.anchor_size)
@@ -55,13 +57,34 @@ class rpn(nn.Module):
 
     def loss(self, delta, prob, anchor, gt_bbox, image_size):
         #---------- debug
-        
+        assert isinstance(delta, Variable)
+        assert isinstance(prob, Variable)
+        assert isinstance(anchor, np.ndarray)
+        assert isinstance(gt_bbox, np.ndarray)
         #---------- debug
         target_delta, anchor_label = self.anchor_target_creator.make_anchor_target(anchor, gt_bbox, image_size)
+        target_delta = Variable(torch.FloatTensor(target_delta))
+        anchor_label = Variable(torch.LongTensor(anchor_label))
+        if torch.cuda.is_available():
+            target_delta, anchor_label = target_delta.cuda(), anchor_label.cuda()
 
+        rpn_delta_loss = delta_loss(delta, target_delta, anchor_label, 3)
+        
+        rpn_class_loss = F.cross_entropy(prob, anchor_label, ignore_index=-1)   # ignore loss for label value -1
 
-
+        return rpn_delta_loss + rpn_class_loss
 
     def predict(self):
         pass
+
+
+if __name__ == '__main__':
+    rpn_net = rpn(512, 512)
+    image_size = (500,500)
+    features = Variable(torch.randn(1,512,50,50))
+    delta, prob, anchor = rpn_net.forward(features, image_size)
+    gt_bbox = (np.random.rand(10,4) + [0,0,1,1])*240
+    loss = rpn_net.loss(delta, prob, anchor, gt_bbox, image_size)
+    loss.backward()
+    print(loss)
 
