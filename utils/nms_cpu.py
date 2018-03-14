@@ -7,10 +7,10 @@
 
 import numpy as np
 
-def py_cpu_nms(roi, thresh, prob=None):
+def py_cpu_nms(roi, thresh=0.7, prob=None):
     """Pure Python NMS baseline.
     roi: (N, 4)
-    prob: (N,)
+    prob: None or (N,)
     """
     #---------- debug
     assert isinstance(roi, np.ndarray)
@@ -48,6 +48,8 @@ def py_cpu_nms(roi, thresh, prob=None):
         order = order[inds + 1]
 
     return keep # list of index of kept roi
+
+
 
 if __name__ == "__main__":
     roi = np.array([

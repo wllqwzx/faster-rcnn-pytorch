@@ -5,18 +5,24 @@ import numpy as np
 
 
 class RoIPool(nn.Module):
-    def __init__(self, pooled_height, pooled_width, spatial_scale=1.0):
+    def __init__(self, pooled_height, pooled_width):
         super(RoIPool, self).__init__()
         self.pooled_width = int(pooled_width)
         self.pooled_height = int(pooled_height)
-        self.spatial_scale = float(spatial_scale)
 
-    def forward(self, features, rois):
+    def forward(self, features, rois, spatial_scale):
         """
         Args:
             features: (N=1, C, H, W)
             rois: (N, 5); 5=[roi_index, x1, y1, x2, y2]
+            spatial_scale: feature size / image size, this is important because rois are in image scale!
+        Note: both features and rois are required to be Variable type.
+              You should transform rois to Variable and set requires_grad to False before pass is to this function.
         """
+        #---------- debug
+        assert isinstance(features, Variable)
+        assert isinstance(rois, Variable)
+        #---------- debug
         batch_size, num_channels, data_height, data_width = features.size()
         num_rois = rois.size()[0]
         outputs = Variable(torch.zeros(num_rois, num_channels, self.pooled_height, self.pooled_width))
@@ -26,7 +32,7 @@ class RoIPool(nn.Module):
         for roi_ind, roi in enumerate(rois):
             batch_ind = int(roi[0].data[0])
             roi_start_w, roi_start_h, roi_end_w, roi_end_h = np.round(
-                roi[1:].data.cpu().numpy() * self.spatial_scale).astype(int)
+                roi[1:].data.cpu().numpy() * spatial_scale).astype(int)
             roi_width = max(roi_end_w - roi_start_w + 1, 1)
             roi_height = max(roi_end_h - roi_start_h + 1, 1)
             bin_size_w = float(roi_width) / float(self.pooled_width)
@@ -49,30 +55,30 @@ class RoIPool(nn.Module):
                     else:
                         data = features[batch_ind]
 
-                        TEMP = torch.max(data[:, hstart:hend, wstart:wend], 1)[0]
-                        outputs[roi_ind, :, ph, pw] = torch.max(TEMP, 1)[0].view(-1)
+                        data_pool = torch.max(data[:, hstart:hend, wstart:wend], 1)[0]
+                        outputs[roi_ind, :, ph, pw] = torch.max(data_pool, 1)[0].view(-1)
         #---------- debug
         assert outputs.shape[0] == rois.shape[0]
         assert outputs.shape[1] == features.shape[1]
         assert outputs.shape[2] == self.pooled_height
         assert outputs.shape[3] == self.pooled_width
+        assert isinstance(outputs, Variable)
         #---------- debug
         return outputs
 
-#-----
 
 if __name__ == '__main__':
-    feature_map = Variable(torch.ones(1,1,80,80), requires_grad=False)
-    feature_map[0,0,1,1] = 2
-    feature_map[0,0,1,70] = 3
-    feature_map[0,0,70,1] = 4
-    feature_map[0,0,70,70] = 5
-    rois = Variable(torch.LongTensor([[0,0,0,75,75], [0,0,0,20,20]]),requires_grad=False)
-    print(feature_map.shape)
+    features = Variable(torch.ones(1,1,80,80), requires_grad=False)
+    features[0,0,1,1] = 2
+    features[0,0,1,70] = 3
+    features[0,0,70,1] = 4
+    features[0,0,70,70] = 5
+    rois = Variable(torch.LongTensor([[0,0,0,750,750], [0,0,0,200,200]]),requires_grad=False)
+    print(features.shape)
     print(rois.shape)
 
     roip = RoIPool(2,2)
-    out = roip(feature_map, rois)
+    out = roip(features, rois, spatial_scale=0.1)
     print(out)
     print(out.shape)
 
