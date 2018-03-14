@@ -27,8 +27,8 @@ def delta_loss(pred_delta, target_delta, anchor_label, sigma):
     """
     #---------- debug
     assert isinstance(pred_delta, Variable)
-    assert isinstance(target_delta, np.ndarray)
-    assert isinstance(anchor_label, np.ndarray)
+    assert isinstance(target_delta, Variable)
+    assert isinstance(anchor_label, Variable)
     assert pred_delta.shape == target_delta.shape
     assert pred_delta.shape[0] == anchor_label.shape[0]
     #---------- debug
@@ -36,10 +36,7 @@ def delta_loss(pred_delta, target_delta, anchor_label, sigma):
     if torch.cuda.is_available():
         weight.cuda()
 
-    # Localization loss is calculated only for positive rois, negative roi is used in classification loss.
-    target_delta = Variable(torch.FloatTensor(target_delta))
-    anchor_label = torch.IntTensor(anchor_label)
-    pos_index = (anchor_label > 0).view(-1,1).expand_as(weight)
+    pos_index = (anchor_label.data > 0).view(-1,1).expand_as(weight)
     weight[pos_index] = 1
     weight = Variable(weight)
 
@@ -48,8 +45,8 @@ def delta_loss(pred_delta, target_delta, anchor_label, sigma):
 
 if __name__ == '__main__':
     pred_delta = Variable(torch.rand(15000, 4))
-    target_delta = np.random.rand(15000,4)
-    anchor_label = np.random.randint(0,20,size=15000)
+    target_delta = Variable(torch.rand(15000, 4))
+    anchor_label = Variable((torch.rand(15000)*20).int())
     loss = delta_loss(pred_delta, target_delta, anchor_label, 1)
     print(loss) #=> Variable: FloatTensor od size 1.
     print("loss passed!")

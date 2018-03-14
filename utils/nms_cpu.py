@@ -7,16 +7,16 @@
 
 import numpy as np
 
-def py_cpu_nms(roi, thresh=0.7, prob=None):
+def py_cpu_nms(roi, thresh=0.7, score=None):
     """Pure Python NMS baseline.
     roi: (N, 4)
-    prob: None or (N,)
+    score: None or (N,)
     """
     #---------- debug
     assert isinstance(roi, np.ndarray)
-    assert prob == None or isinstance(prob, np.ndarray)
+    assert score == None or isinstance(score, np.ndarray)
     assert len(roi.shape) == 2
-    assert prob == None or len(prob.shape) == 1
+    assert score == None or len(score.shape) == 1
 
     #----------
     x1 = roi[:, 0]
@@ -25,10 +25,10 @@ def py_cpu_nms(roi, thresh=0.7, prob=None):
     y2 = roi[:, 3]
 
     areas = (x2 - x1 + 1) * (y2 - y1 + 1)
-    if prob == None:    # roi are already sorted in large --> small order
+    if score == None:    # roi are already sorted in large --> small order
         order = np.arange(roi.shape[0])
     else:               # roi are not sorted
-        order = prob.argsort()[::-1]
+        order = score.argsort()[::-1]
 
     keep = []
     while order.size > 0:

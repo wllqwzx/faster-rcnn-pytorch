@@ -20,17 +20,17 @@ class ProposalCreator(object):
         self.n_test_post_nms = 300
         self.min_roi_size = 16
 
-    def make_proposal(self, anchor, delta, prob, image_size, is_training):
+    def make_proposal(self, anchor, delta, score, image_size, is_training):
         """
         image_size used for clip anchor inside image field.
         anchor: (N, 4)
         delta:  (N, 4)
-        prob:   (N,)
+        score:   (N,)
         """
         #---------- debug
-        assert isinstance(anchor, np.ndarray) and isinstance(delta, np.ndarray) and isinstance(prob, np.ndarray)
-        assert len(anchor.shape) == 2 and len(delta.shape) == 2 and len(prob.shape) == 1
-        assert anchor.shape[0] == delta.shape[0] == prob.shape[0]
+        assert isinstance(anchor, np.ndarray) and isinstance(delta, np.ndarray) and isinstance(score, np.ndarray)
+        assert len(anchor.shape) == 2 and len(delta.shape) == 2 and len(score.shape) == 1
+        assert anchor.shape[0] == delta.shape[0] == score.shape[0]
         #----------
         if is_training:
             n_pre_nms = self.n_train_pre_nms
@@ -49,15 +49,15 @@ class ProposalCreator(object):
         ws = roi[:, 3] - roi[:, 1]
         keep = np.where((hs >= self.min_roi_size) & (ws >= self.min_roi_size))[0]
         roi = roi[keep, :]
-        prob = prob[keep]
+        score = score[keep]
 
-        # 3. keep top n_pre_nms rois according to prob, and the left roi are sorted according to prob
-        order = prob.argsort()[::-1]
+        # 3. keep top n_pre_nms rois according to score, and the left roi are sorted according to score
+        order = score.argsort()[::-1]
         order = order[:n_pre_nms]
         roi = roi[order,:]
         
         # 4. apply nms, ans keep top n_post_nms roi
-        # note that roi is already sorted according to its prob value
+        # note that roi is already sorted according to its score value
         keep = nms(roi, self.nms_thresh)
         keep = keep[:n_post_nms]
         roi = roi[keep,:]
@@ -70,7 +70,7 @@ if __name__ == '__main__':
     from utils.generate_anchor import generate_anchor
     anchor = generate_anchor(50,50,(600,800))   # (22500, 4)
     delta = np.random.randn(22500,4)
-    prob = np.random.randn(22500)
-    roi = proposal_creater.make_proposal(anchor, delta, prob, (600,800), True)
+    score = np.random.randn(22500)
+    roi = proposal_creater.make_proposal(anchor, delta, score, (600,800), True)
     assert roi.shape == (2000, 4)
     print("ProposalCreator passed!")

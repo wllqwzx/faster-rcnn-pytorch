@@ -19,7 +19,7 @@ class rpn(nn.Module):
         self.K = len(ratio)*len(anchor_size)    # default: 9 : 9 ahcnors per spatial channel in feature maps
 
         self.mid_layer = nn.Conv2d(in_channel, mid_channel, kernel_size=3, stride=1, padding=1) 
-        self.prob_layer = nn.Conv2d(mid_channel, 2*self.K, kernel_size=1, stride=1, padding=0)
+        self.score_layer = nn.Conv2d(mid_channel, 2*self.K, kernel_size=1, stride=1, padding=0)
         self.delta_layer = nn.Conv2d(mid_channel, 4*self.K, kernel_size=1, stride=1, padding=0)
 
         self.proposal_creator = ProposalCreator()
@@ -43,22 +43,22 @@ class rpn(nn.Module):
         delta = self.delta_layer(mid_features)
         delta = delta.permute(0,2,3,1).contiguous().view([feature_height*feature_width*self.K, 4])
         
-        prob = F.softmax(self.prob_layer(mid_features))
-        prob = prob.permute(0,2,3,1).contiguous().view([feature_height*feature_width*self.K, 2])
+        score = self.score_layer(mid_features)
+        score = score.permute(0,2,3,1).contiguous().view([feature_height*feature_width*self.K, 2])
 
         # ndarray: (feature_height*feature_width*K, 4)
         anchor = generate_anchor(feature_height, feature_width, image_size, self.ratio, self.anchor_size)
         #---------- debug
-        assert isinstance(delta, Variable) and isinstance(prob, Variable) and isinstance(anchor, np.ndarray)
+        assert isinstance(delta, Variable) and isinstance(score, Variable) and isinstance(anchor, np.ndarray)
         assert delta.shape == (feature_height*feature_width*self.K, 4)
-        assert prob.shape == (feature_height*feature_width*self.K, 2)
+        assert score.shape == (feature_height*feature_width*self.K, 2)
         #---------- debug
-        return delta, prob, anchor
+        return delta, score, anchor
 
-    def loss(self, delta, prob, anchor, gt_bbox, image_size):
+    def loss(self, delta, score, anchor, gt_bbox, image_size):
         #---------- debug
         assert isinstance(delta, Variable)
-        assert isinstance(prob, Variable)
+        assert isinstance(score, Variable)
         assert isinstance(anchor, np.ndarray)
         assert isinstance(gt_bbox, np.ndarray)
         #---------- debug
@@ -70,7 +70,7 @@ class rpn(nn.Module):
 
         rpn_delta_loss = delta_loss(delta, target_delta, anchor_label, 3)
         
-        rpn_class_loss = F.cross_entropy(prob, anchor_label, ignore_index=-1)   # ignore loss for label value -1
+        rpn_class_loss = F.cross_entropy(score, anchor_label, ignore_index=-1)   # ignore loss for label value -1
 
         return rpn_delta_loss + rpn_class_loss
 
@@ -82,9 +82,9 @@ if __name__ == '__main__':
     rpn_net = rpn(512, 512)
     image_size = (500,500)
     features = Variable(torch.randn(1,512,50,50))
-    delta, prob, anchor = rpn_net.forward(features, image_size)
+    delta, score, anchor = rpn_net.forward(features, image_size)
     gt_bbox = (np.random.rand(10,4) + [0,0,1,1])*240
-    loss = rpn_net.loss(delta, prob, anchor, gt_bbox, image_size)
+    loss = rpn_net.loss(delta, score, anchor, gt_bbox, image_size)
     loss.backward()
     print(loss)
 
