@@ -26,7 +26,7 @@ def get_vgg16_extractor_and_head(n_class, roip_size=7):
 class _VGG16Head(nn.Module):
     def __init__(self, n_class_bg, roip_size, classifier):
         """n_class_bg: n_class plus background = n_class + 1"""
-        super().__init__()
+        super(_VGG16Head, self).__init__()
         self.n_class_bg = n_class_bg
         self.roip_size = roip_size
 
@@ -73,7 +73,7 @@ class _VGG16Head(nn.Module):
     def loss(self):
         pass
     
-    def predice(self):
+    def predict(self):
         pass
     
 
