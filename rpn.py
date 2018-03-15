@@ -74,8 +74,17 @@ class rpn(nn.Module):
 
         return rpn_delta_loss + rpn_class_loss
 
-    def predict(self):
-        pass
+    def predict(self, delta, score, anchor, image_size):
+        #---------- debug
+        assert isinstance(delta, Variable)
+        assert isinstance(score, Variable)
+        assert isinstance(anchor, np.ndarray)
+        #---------- debug
+        delta = delta.data.numpy()
+        score = score.data.numpy()
+        score_fg = score[:,1]
+        roi = self.proposal_creator.make_proposal(anchor, delta, score_fg, image_size, is_training=self.training)
+        return roi
 
 
 if __name__ == '__main__':
@@ -83,8 +92,16 @@ if __name__ == '__main__':
     image_size = (500,500)
     features = Variable(torch.randn(1,512,50,50))
     delta, score, anchor = rpn_net.forward(features, image_size)
+    
     gt_bbox = (np.random.rand(10,4) + [0,0,1,1])*240
     loss = rpn_net.loss(delta, score, anchor, gt_bbox, image_size)
     loss.backward()
     print(loss)
 
+    rpn_net.train()
+    roi = rpn_net.predict(delta, score, anchor, image_size)
+    print(roi.shape)
+
+    rpn_net.eval()
+    roi = rpn_net.predict(delta, score, anchor, image_size)
+    print(roi.shape)
