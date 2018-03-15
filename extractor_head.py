@@ -7,6 +7,8 @@ import numpy as np
 
 from utils.roipooling import RoIPool
 from utils.loss import delta_loss
+from utils.bbox_tools import delta2bbox
+from utils.nms_cpu import py_cpu_nms
 
 def get_vgg16_extractor_and_head(n_class, roip_size=7):
     vgg16_net = vgg16(pretrained=False)
@@ -78,8 +80,8 @@ class _VGG16Head(nn.Module):
     def loss(self, score, delta_per_class, target_delta_for_sample_roi, bbox_bg_label_for_sample_roi):
         """
         Args:
-            score: (N,2)
-            delta_per_class: (N,4*n_class_bg)
+            score: (N, 2)
+            delta_per_class: (N, 4*n_class_bg)
             target_delta_for_sample_roi: (N, 4)
             bbox_bg_label_for_sample_roi: (N,)
         """
@@ -91,6 +93,8 @@ class _VGG16Head(nn.Module):
         #---------- debug
         n_sample = score.shape[0]
         delta_per_class = delta_per_class.view(n_sample, -1, 4)
+
+        # get delta for roi w.r.t its corresponding bbox label
         delta = delta_per_class[torch.arange(0, n_sample).long(), bbox_bg_label_for_sample_roi.data]
 
         head_delta_loss = delta_loss(delta, target_delta_for_sample_roi, bbox_bg_label_for_sample_roi, 1)
@@ -98,9 +102,66 @@ class _VGG16Head(nn.Module):
 
         return head_class_loss + head_delta_loss
 
-    def predict(self):
-        pass
+    def predict(self, roi, delta_per_class, score, image_size, prob_threshold=0.5):
+        """
+        Args:
+            roi: (N, 4)
+            delta_per_class: (N, 4*n_class_bg)
+            score: (N, n_class_bg)
+        """
+        #---------- debug
+        assert isinstance(roi, np.ndarray)
+        assert isinstance(delta_per_class, Variable)
+        assert isinstance(score, Variable)
+        #---------- debug
+        roi = torch.FloatTensor(roi)
+        delta_per_class = delta_per_class.data
+        prob = F.softmax(score, dim=1).data
+
+        delta_per_class = delta_per_class.view(-1, self.n_class_bg, 4)
+        roi = roi.view(-1,1,4).expand_as(delta_per_class)
+        bbox_per_class = delta2bbox(roi.numpy().reshape(-1,4), delta_per_class.numpy().reshape(-1,4))
+        bbox_per_class = torch.FloatTensor(bbox_per_class)
+
+        bbox_per_class[:,0::2] = bbox_per_class[:,0::2].clamp(min=0, max=image_size[0])
+        bbox_per_class[:,1::2] = bbox_per_class[:,1::2].clamp(min=0, max=image_size[1])
+
+        bbox_per_class = bbox_per_class.numpy().reshape(-1,self.n_class_bg,4)
+        prob = prob.numpy()
+        #---------- debug
+        assert bbox_per_class.shape[0] == prob.shape[0]
+        assert bbox_per_class.shape[2] == 4
+        assert bbox_per_class.shape[1] == prob.shape[1] == self.n_class_bg
+        #---------- debug
+        
+        # suppress:
+        bbox_out = []
+        class_out = []
+        prob_out = []
+        # skip class_id = 0 because it is the background class
+        for t in range(1, self.n_class_bg):
+            bbox_for_class_t = bbox_per_class[:,t,:]    #(N, 4)
+            prob_for_class_t = prob[:,t]                #(N,)
+            mask = prob_for_class_t > prob_threshold    #(N,)
+            left_bbox_for_class_t = bbox_for_class_t[mask]  #(N2,4)
+            left_prob_for_class_t = prob_for_class_t[mask]  #(N2,)
+            
+            keep = py_cpu_nms(left_bbox_for_class_t, score=left_prob_for_class_t)
+            bbox_out.append(left_bbox_for_class_t[keep])
+            prob_out.append(left_prob_for_class_t[keep])
+            class_out.append((t-1)*np.ones(len(keep)))
+
+        bbox_out = np.concatenate(bbox_out, axis=0).astype(np.float32)
+        prob_out = np.concatenate(prob_out, axis=0).astype(np.float32)
+        class_out = np.concatenate(class_out, axis=0).astype(np.int32)
+        #---------- debug
+        assert isinstance(bbox_out, np.ndarray)
+        assert isinstance(prob_out, np.ndarray)
+        assert isinstance(class_out, np.ndarray)
+        #---------- debug
+        return bbox_out, class_out, prob_out
     
+
 
 def _get_resnet50_extractor_and_head():
     pass
@@ -126,3 +187,10 @@ if __name__ == '__main__':
     loss = head.loss(score, delta_per_class,target_delta_for_sample_roi,bbox_bg_label_for_sample_roi)
     print(loss)
     loss.backward()
+
+    rois = (np.random.rand(300,4)+[0,0,1,1])*240
+    delta_per_class, score = head.forward(features, rois, image_size=(500,500))
+    bbox_out, class_out, prob_out = head.predict(rois, delta_per_class, score, image_size=(500,500),prob_threshold=0.2)
+    print(bbox_out.shape)
+    print(class_out.shape)
+    print(prob_out.shape)
