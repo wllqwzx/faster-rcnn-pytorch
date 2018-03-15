@@ -14,9 +14,9 @@ def py_cpu_nms(roi, thresh=0.7, score=None):
     """
     #---------- debug
     assert isinstance(roi, np.ndarray)
-    assert score == None or isinstance(score, np.ndarray)
+    assert (score is None) or (isinstance(score, np.ndarray))
     assert len(roi.shape) == 2
-    assert score == None or len(score.shape) == 1
+    assert score is None or len(score.shape) == 1
 
     #----------
     x1 = roi[:, 0]
@@ -25,7 +25,7 @@ def py_cpu_nms(roi, thresh=0.7, score=None):
     y2 = roi[:, 3]
 
     areas = (x2 - x1 + 1) * (y2 - y1 + 1)
-    if score == None:    # roi are already sorted in large --> small order
+    if score is None:    # roi are already sorted in large --> small order
         order = np.arange(roi.shape[0])
     else:               # roi are not sorted
         order = score.argsort()[::-1]
