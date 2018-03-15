@@ -23,7 +23,11 @@ def get_vgg16_extractor_and_head(n_class, roip_size=7):
     classifier = list(vgg16_net.classifier)
     del(classifier[6])  # delete last fc layer
     classifier = nn.Sequential(*classifier)     # classifier : (N,25088) -> (N,4096); 25088 = 512*7*7 = C*H*W
+    if torch.cuda.is_available():
+        classifier = classifier.cuda()
     head = _VGG16Head(n_class_bg=n_class+1, roip_size=roip_size, classifier=classifier)
+    if torch.cuda.is_available():
+        extractor, head = extractor.cuda(), head.cuda()
     return extractor, head, output_feature_channel
 
 
@@ -63,9 +67,13 @@ class _VGG16Head(nn.Module):
         rois = Variable(torch.FloatTensor(rois))
         if torch.cuda.is_available():
             rois = rois.cuda()
+
         roipool_out = self.roip(feature_map, rois, spatial_scale=feature_image_scale)
 
         roipool_out = roipool_out.view(roipool_out.size(0), -1) # (N, 25088)
+        if torch.cuda.is_available():
+            roipool_out = roipool_out.cuda()
+
         mid_output = self.classifier(roipool_out)   # (N, 4096)
         delta_per_class = self.delta(mid_output)    # (N, n_class_bg*4)
         score = self.score(mid_output)      # (N, n_class_bg)
@@ -88,14 +96,23 @@ class _VGG16Head(nn.Module):
         #---------- debug
         assert isinstance(score, Variable)
         assert isinstance(delta_per_class, Variable)
-        assert isinstance(target_delta_for_sample_roi, Variable)
-        assert isinstance(bbox_bg_label_for_sample_roi, Variable)
+        assert isinstance(target_delta_for_sample_roi, np.ndarray)
+        assert isinstance(bbox_bg_label_for_sample_roi, np.ndarray)
         #---------- debug
+        target_delta_for_sample_roi = Variable(torch.FloatTensor(target_delta_for_sample_roi))
+        bbox_bg_label_for_sample_roi = Variable(torch.LongTensor(bbox_bg_label_for_sample_roi))
+        if torch.cuda.is_available():
+            target_delta_for_sample_roi = target_delta_for_sample_roi.cuda()
+            bbox_bg_label_for_sample_roi = bbox_bg_label_for_sample_roi.cuda()
+
         n_sample = score.shape[0]
         delta_per_class = delta_per_class.view(n_sample, -1, 4)
 
         # get delta for roi w.r.t its corresponding bbox label
-        delta = delta_per_class[torch.arange(0, n_sample).long(), bbox_bg_label_for_sample_roi.data]
+        index = torch.arange(0, n_sample).long()
+        if torch.cuda.is_available():
+            index = index.cuda()
+        delta = delta_per_class[index, bbox_bg_label_for_sample_roi.data]
 
         head_delta_loss = delta_loss(delta, target_delta_for_sample_roi, bbox_bg_label_for_sample_roi, 1)
         head_class_loss = F.cross_entropy(score, bbox_bg_label_for_sample_roi)
@@ -115,19 +132,21 @@ class _VGG16Head(nn.Module):
         assert isinstance(score, Variable)
         #---------- debug
         roi = torch.FloatTensor(roi)
+        if torch.cuda.is_available():
+            roi = roi.cuda()
         delta_per_class = delta_per_class.data
         prob = F.softmax(score, dim=1).data
 
         delta_per_class = delta_per_class.view(-1, self.n_class_bg, 4)
         roi = roi.view(-1,1,4).expand_as(delta_per_class)
-        bbox_per_class = delta2bbox(roi.numpy().reshape(-1,4), delta_per_class.numpy().reshape(-1,4))
+        bbox_per_class = delta2bbox(roi.cpu().numpy().reshape(-1,4), delta_per_class.cpu().numpy().reshape(-1,4))
         bbox_per_class = torch.FloatTensor(bbox_per_class)
 
         bbox_per_class[:,0::2] = bbox_per_class[:,0::2].clamp(min=0, max=image_size[0])
         bbox_per_class[:,1::2] = bbox_per_class[:,1::2].clamp(min=0, max=image_size[1])
 
         bbox_per_class = bbox_per_class.numpy().reshape(-1,self.n_class_bg,4)
-        prob = prob.numpy()
+        prob = prob.cpu().numpy()
         #---------- debug
         assert bbox_per_class.shape[0] == prob.shape[0]
         assert bbox_per_class.shape[2] == 4
@@ -169,9 +188,11 @@ def _get_resnet50_extractor_and_head():
 
 if __name__ == '__main__':
     from utils.proposal_target_creator import ProposalTargetCreator
-    extractor, head, output_feature_channel = get_vgg16_extractor_and_head(20, 7)
-    
+    extractor, head, output_feature_channel = get_vgg16_extractor_and_head(20, 7)    
     features = Variable(torch.randn(1,512,50,50))
+    if torch.cuda.is_available():
+        extractor, head, features = extractor.cuda(), head.cuda(), features.cuda()
+        
     rois = (np.random.rand(2000,4)+[0,0,1,1])*240
     gt_bbox = (np.random.rand(10,4) + [0,0,1,1])*240
     gt_bbox_label = np.random.randint(0,20,size=10)
@@ -179,10 +200,6 @@ if __name__ == '__main__':
     proposal_target_creator = ProposalTargetCreator()
     sample_roi, target_delta_for_sample_roi, bbox_bg_label_for_sample_roi = proposal_target_creator.make_proposal_target(rois, gt_bbox, gt_bbox_label)
     
-    # sample_roi = Variable(torch.FloatTensor(sample_roi))
-    target_delta_for_sample_roi = Variable(torch.FloatTensor(target_delta_for_sample_roi))
-    bbox_bg_label_for_sample_roi = Variable(torch.LongTensor(bbox_bg_label_for_sample_roi))
-
     delta_per_class, score = head.forward(features, sample_roi, image_size=(500,500))
     loss = head.loss(score, delta_per_class,target_delta_for_sample_roi,bbox_bg_label_for_sample_roi)
     print(loss)

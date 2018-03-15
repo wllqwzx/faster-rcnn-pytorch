@@ -14,6 +14,9 @@ def _smooth_l1_loss(pred_delta, target_delta, weight, sigma):
     abs_diff = diff.abs()
     flag = (abs_diff.data < (1.0 / sigma2)).float() # do not back propagat on flag
     flag = Variable(flag, requires_grad=False)
+    if torch.cuda.is_available():
+        flag = flag.cuda()
+        
     res = flag*(sigma2 / 2.)*(abs_diff * abs_diff)  +  (1 - flag)*(abs_diff - 0.5 / sigma2)
     return res.sum()
 
@@ -33,12 +36,12 @@ def delta_loss(pred_delta, target_delta, anchor_label, sigma):
     assert pred_delta.shape[0] == anchor_label.shape[0]
     #---------- debug
     weight = torch.zeros(target_delta.shape)
-    if torch.cuda.is_available():
-        weight.cuda()
 
     pos_index = (anchor_label.data > 0).view(-1,1).expand_as(weight)
-    weight[pos_index] = 1
+    weight[pos_index.cpu()] = 1
     weight = Variable(weight)
+    if torch.cuda.is_available():
+        weight = weight.cuda()
 
     loss = _smooth_l1_loss(pred_delta, target_delta, weight, sigma)
     return loss

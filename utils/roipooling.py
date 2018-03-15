@@ -27,7 +27,7 @@ class RoIPool(nn.Module):
         num_rois = rois.size()[0]
         outputs = Variable(torch.zeros(num_rois, num_channels, self.pooled_height, self.pooled_width))
         if torch.cuda.is_available():
-            outputs.cuda()
+            outputs = outputs.cuda()
 
         for roi_ind, roi in enumerate(rois):
             batch_ind = int(roi[0].data[0])

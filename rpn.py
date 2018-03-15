@@ -80,17 +80,27 @@ class rpn(nn.Module):
         assert isinstance(score, Variable)
         assert isinstance(anchor, np.ndarray)
         #---------- debug
-        delta = delta.data.numpy()
-        score = score.data.numpy()
+        delta = delta.data.cpu().numpy()
+        score = score.data.cpu().numpy()
         score_fg = score[:,1]
         roi = self.proposal_creator.make_proposal(anchor, delta, score_fg, image_size, is_training=self.training)
+        
+        #---------- debug
+        assert isinstance(roi, np.ndarray)
+        #---------- debug
         return roi
 
 
 if __name__ == '__main__':
     rpn_net = rpn(512, 512)
+    if torch.cuda.is_available():
+        rpn_net = rpn_net.cuda()
+
     image_size = (500,500)
     features = Variable(torch.randn(1,512,50,50))
+    if torch.cuda.is_available():
+        features = features.cuda()
+
     delta, score, anchor = rpn_net.forward(features, image_size)
     
     gt_bbox = (np.random.rand(10,4) + [0,0,1,1])*240
