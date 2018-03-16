@@ -1,6 +1,6 @@
 import numpy as np
-from utils.bbox_tools import bbox_iou
-from utils.bbox_tools import bbox2delta
+from model.utils.bbox_tools import bbox_iou
+from model.utils.bbox_tools import bbox2delta
 
 class ProposalTargetCreator(object):
     """
@@ -74,6 +74,7 @@ class ProposalTargetCreator(object):
 
         target_delta_for_sample_roi = bbox2delta(sample_roi, gt_bbox[bbox_index_for_roi[keep_index]])
 
+        target_delta_for_sample_roi = (target_delta_for_sample_roi - np.array([0., 0., 0., 0.])) / np.array([0.1, 0.1, 0.2, 0.2])
         return sample_roi, target_delta_for_sample_roi, bbox_bg_label_for_sample_roi
 
 if __name__ == '__main__':

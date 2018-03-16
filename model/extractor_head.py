@@ -5,13 +5,13 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 import numpy as np
 
-from utils.roipooling import RoIPool
-from utils.loss import delta_loss
-from utils.bbox_tools import delta2bbox
-from utils.nms_cpu import py_cpu_nms
+from model.utils.roipooling import RoIPool
+from model.utils.loss import delta_loss
+from model.utils.bbox_tools import delta2bbox
+from model.utils.nms_cpu import py_cpu_nms
 
-def get_vgg16_extractor_and_head(n_class, roip_size=7):
-    vgg16_net = vgg16(pretrained=False)
+def get_vgg16_extractor_and_head(n_class, roip_size=7, vgg_pretrained=False):
+    vgg16_net = vgg16(pretrained=True)
     features = list(vgg16_net.features)[0:30]
     
     for layer in features[0:10]:    # freeze top 4 conv2d layers
@@ -42,7 +42,10 @@ class _VGG16Head(nn.Module):
         self.classifier = classifier
         self.delta = nn.Linear(in_features=4096, out_features=n_class_bg*4)    # Note: predice a delta for each class
         self.score = nn.Linear(in_features=4096, out_features=n_class_bg)
-    
+
+        normal_init(self.delta, 0, 0.001)
+        normal_init(self.score, 0, 0.01)
+
     def forward(self, feature_map, rois, image_size):
         """
         Args:
@@ -117,7 +120,7 @@ class _VGG16Head(nn.Module):
         head_delta_loss = delta_loss(delta, target_delta_for_sample_roi, bbox_bg_label_for_sample_roi, 1)
         head_class_loss = F.cross_entropy(score, bbox_bg_label_for_sample_roi)
 
-        return head_class_loss + head_delta_loss
+        return head_delta_loss + head_class_loss
 
     def predict(self, roi, delta_per_class, score, image_size, prob_threshold=0.5):
         """
@@ -138,6 +141,10 @@ class _VGG16Head(nn.Module):
         prob = F.softmax(score, dim=1).data
 
         delta_per_class = delta_per_class.view(-1, self.n_class_bg, 4)
+        
+        #!!!!!
+        delta_per_class = delta_per_class * torch.cuda.FloatTensor([0.1, 0.1, 0.2, 0.2]) + torch.cuda.FloatTensor([0., 0., 0., 0.])
+        
         roi = roi.view(-1,1,4).expand_as(delta_per_class)
         bbox_per_class = delta2bbox(roi.cpu().numpy().reshape(-1,4), delta_per_class.cpu().numpy().reshape(-1,4))
         bbox_per_class = torch.FloatTensor(bbox_per_class)
@@ -158,13 +165,14 @@ class _VGG16Head(nn.Module):
         class_out = []
         prob_out = []
         # skip class_id = 0 because it is the background class
+
         for t in range(1, self.n_class_bg):
             bbox_for_class_t = bbox_per_class[:,t,:]    #(N, 4)
             prob_for_class_t = prob[:,t]                #(N,)
             mask = prob_for_class_t > prob_threshold    #(N,)
+            print("mask", mask.sum())
             left_bbox_for_class_t = bbox_for_class_t[mask]  #(N2,4)
             left_prob_for_class_t = prob_for_class_t[mask]  #(N2,)
-            
             keep = py_cpu_nms(left_bbox_for_class_t, score=left_prob_for_class_t)
             bbox_out.append(left_bbox_for_class_t[keep])
             prob_out.append(left_prob_for_class_t[keep])
@@ -185,9 +193,20 @@ class _VGG16Head(nn.Module):
 def _get_resnet50_extractor_and_head():
     pass
 
+def normal_init(m, mean, stddev, truncated=False):
+    """
+    weight initalizer: truncated normal and random normal.
+    """
+    # x is a parameter
+    if truncated:
+        m.weight.data.normal_().fmod_(2).mul_(stddev).add_(mean)  # not a perfect approximation
+    else:
+        m.weight.data.normal_(mean, stddev)
+        m.bias.data.zero_()
+
 
 if __name__ == '__main__':
-    from utils.proposal_target_creator import ProposalTargetCreator
+    from model.utils.proposal_target_creator import ProposalTargetCreator
     extractor, head, output_feature_channel = get_vgg16_extractor_and_head(20, 7)    
     features = Variable(torch.randn(1,512,50,50))
     if torch.cuda.is_available():

@@ -1,6 +1,6 @@
 import numpy as np
-from utils.bbox_tools import bbox_iou
-from utils.bbox_tools import bbox2delta
+from model.utils.bbox_tools import bbox_iou
+from model.utils.bbox_tools import bbox2delta
 
 class AnchorTargetCreator(object):
     """

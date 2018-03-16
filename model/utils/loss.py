@@ -44,6 +44,9 @@ def delta_loss(pred_delta, target_delta, anchor_label, sigma):
         weight = weight.cuda()
 
     loss = _smooth_l1_loss(pred_delta, target_delta, weight, sigma)
+    
+    # ignore gt_label==-1 for rpn_loss
+    loss = loss / (anchor_label.data >=0).sum() 
     return loss
 
 if __name__ == '__main__':

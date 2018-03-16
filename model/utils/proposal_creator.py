@@ -1,7 +1,7 @@
 import numpy as np
-from utils.bbox_tools import delta2bbox
-from utils.nms_cpu import py_cpu_nms as nms
-from utils.anchor_target_creator import AnchorTargetCreator
+from model.utils.bbox_tools import delta2bbox
+from model.utils.nms_cpu import py_cpu_nms as nms
+from model.utils.anchor_target_creator import AnchorTargetCreator
 
 class ProposalCreator(object):
     """
@@ -67,7 +67,7 @@ class ProposalCreator(object):
 
 if __name__ == '__main__':
     proposal_creater = ProposalCreator()
-    from utils.generate_anchor import generate_anchor
+    from model.utils.generate_anchor import generate_anchor
     anchor = generate_anchor(50,50,(600,800))   # (22500, 4)
     delta = np.random.randn(22500,4)
     score = np.random.randn(22500)

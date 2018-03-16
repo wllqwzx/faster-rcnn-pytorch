@@ -18,8 +18,8 @@ def delta2bbox(src_bbox, delta):
 
     dst_bbox_x = src_bbox_x + src_bbox_h*delta[:,0] 
     dst_bbox_y = src_bbox_y + src_bbox_w*delta[:,1] 
-    dst_bbox_h = src_bbox_h / np.exp(delta[:,2])
-    dst_bbox_w = src_bbox_w / np.exp(delta[:,3])
+    dst_bbox_h = src_bbox_h * np.exp(delta[:,2])
+    dst_bbox_w = src_bbox_w * np.exp(delta[:,3])
 
     dst_bbox_x_min = (dst_bbox_x - dst_bbox_h / 2).reshape([-1, 1])
     dst_bbox_y_min = (dst_bbox_y - dst_bbox_w / 2).reshape([-1, 1])
@@ -39,19 +39,21 @@ def bbox2delta(src_bbox, dst_bbox):
     assert isinstance(dst_bbox, np.ndarray)
     assert src_bbox.shape == dst_bbox.shape
     #----------
-    src_h = src_bbox[:, 2] - src_bbox[:, 0]
-    src_w = src_bbox[:, 3] - src_bbox[:, 1]
+    src_h = src_bbox[:, 2] - src_bbox[:, 0] + 1.0
+    src_w = src_bbox[:, 3] - src_bbox[:, 1] + 1.0
     src_ctr_x = src_bbox[:, 0] + 0.5 * src_h
     src_ctr_y = src_bbox[:, 1] + 0.5 * src_w
 
-    dst_h = dst_bbox[:, 2] - dst_bbox[:, 0]
-    dst_w = dst_bbox[:, 3] - dst_bbox[:, 1]
+    dst_h = dst_bbox[:, 2] - dst_bbox[:, 0] + 1.0
+    dst_w = dst_bbox[:, 3] - dst_bbox[:, 1] + 1.0
     dst_ctr_x = dst_bbox[:, 0] + 0.5 * dst_h
     dst_ctr_y = dst_bbox[:, 1] + 0.5 * dst_w
 
-    eps = np.finfo(src_h.dtype).eps
-    height = np.maximum(src_h, eps)
-    width = np.maximum(src_w, eps)
+    # eps = np.finfo(src_h.dtype).eps
+    # height = np.maximum(src_h, eps)
+    # width = np.maximum(src_w, eps)
+    height = src_h
+    width = src_w
 
     dx = (dst_ctr_x - src_ctr_x) / height
     dy = (dst_ctr_y - src_ctr_y) / width

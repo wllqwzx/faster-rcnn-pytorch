@@ -5,10 +5,10 @@ from torch.autograd import Variable
 import math
 import numpy as np
 
-from utils.generate_anchor import generate_anchor
-from utils.proposal_creator import ProposalCreator
-from utils.anchor_target_creator import AnchorTargetCreator
-from utils.loss import delta_loss
+from model.utils.generate_anchor import generate_anchor
+from model.utils.proposal_creator import ProposalCreator
+from model.utils.anchor_target_creator import AnchorTargetCreator
+from model.utils.loss import delta_loss
 
 class rpn(nn.Module):
     def __init__(self, in_channel, mid_channel, ratio=[0.5, 1, 2], anchor_size = [128, 256, 512]):
@@ -21,6 +21,9 @@ class rpn(nn.Module):
         self.mid_layer = nn.Conv2d(in_channel, mid_channel, kernel_size=3, stride=1, padding=1) 
         self.score_layer = nn.Conv2d(mid_channel, 2*self.K, kernel_size=1, stride=1, padding=0)
         self.delta_layer = nn.Conv2d(mid_channel, 4*self.K, kernel_size=1, stride=1, padding=0)
+        normal_init(self.mid_layer, 0, 0.01)
+        normal_init(self.score_layer, 0, 0.01)
+        normal_init(self.delta_layer, 0, 0.01)
 
         self.proposal_creator = ProposalCreator()
         self.anchor_target_creator = AnchorTargetCreator()
@@ -89,6 +92,18 @@ class rpn(nn.Module):
         assert isinstance(roi, np.ndarray)
         #---------- debug
         return roi
+
+
+def normal_init(m, mean, stddev, truncated=False):
+    """
+    weight initalizer: truncated normal and random normal.
+    """
+    # x is a parameter
+    if truncated:
+        m.weight.data.normal_().fmod_(2).mul_(stddev).add_(mean)  # not a perfect approximation
+    else:
+        m.weight.data.normal_(mean, stddev)
+        m.bias.data.zero_()
 
 
 if __name__ == '__main__':
