@@ -51,7 +51,7 @@ for epoch in range(15):
 
         loss_value = loss.cpu().data.numpy()[0]
         avg_loss.add(loss_value)
-        ma20_loss.add(loss_value)
+        ma20_loss.add(float(loss_value))
         print('[epoch:{}]  [batch:{}/{}]  [sample_loss:{:.4f}]  [avg_loss:{:.4f}]  [ma20_loss:{:.4f}]'.format(epoch, i, len(train_dataset), loss_value, avg_loss.value()[0], ma20_loss.value()[0]))
 
 
