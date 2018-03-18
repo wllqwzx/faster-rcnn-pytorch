@@ -88,4 +88,3 @@ if __name__ == '__main__':
     assert isinstance(sample_roi, np.ndarray) 
     assert isinstance(bbox_bg_label_for_sample_roi, np.ndarray)
     assert isinstance(target_delta_for_sample_roi, np.ndarray)
-    print("ProposalTargetCreator passed!")

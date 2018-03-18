@@ -60,4 +60,3 @@ if __name__ == "__main__":
     ])
     res = py_cpu_nms(roi, 0.7)
     assert res == [0,2,3]
-    print("py_cpu_nms passed!")

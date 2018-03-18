@@ -38,4 +38,3 @@ def generate_anchor(feature_height, feature_width, image_size, ratio=[0.5, 1, 2]
 if __name__ == '__main__':
     anchor = generate_anchor(50, 50, (512,812.34))
     assert anchor.shape == (50*50*9,4)
-    print("generate_anchor passed!")

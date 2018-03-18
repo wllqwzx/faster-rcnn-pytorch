@@ -101,8 +101,8 @@ class AnchorTargetCreator(object):
         #---------- debug
         assert len(bbox_index_for_anchor.shape) == len(label.shape) == 1
         assert bbox_index_for_anchor.shape[0] == label.shape[0] == anchor.shape[0]
-        # print(np.sum(label == 1)) # change anchor generate parameter, if neg samples 
-        # print(np.sum(label == 0)) # and pos samples are not roughly equal to n_sample/2
+        # print(np.sum(label == 1)) # change anchor generate parameter, if neg samples and pos samples are not roughly equal to n_sample/2
+        # print(np.sum(label == 0))
         assert np.sum(label == 0) + np.sum(label == 1) <= self.n_sample
         #---------- debug
         
@@ -135,4 +135,3 @@ if __name__ == '__main__':
     target_delta, anchor_label = anchor_target_creator.make_anchor_target(anchor, gt_bbox, image_size=(800,800))
     assert target_delta.shape == anchor.shape
     assert anchor_label.shape[0] == anchor.shape[0]
-    print("AnchorTargetCreator passed!")

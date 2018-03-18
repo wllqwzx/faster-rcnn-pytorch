@@ -96,13 +96,11 @@ if __name__ == '__main__':
     delta = np.random.randn(2500,4)
     dst_bbox = delta2bbox(src_bbox, delta)
     assert dst_bbox.shape == src_bbox.shape
-    print("delta2bbox passed!")
 
     src_bbox = np.random.random((2500, 4)) + [0,0,1,1]
     dst_bbox = np.random.random((2500, 4)) + [0,0,1,1]
     delta = bbox2delta(src_bbox, dst_bbox)
     assert delta.shape == src_bbox.shape
-    print("bbox2delta passed!")
 
     bbox1 = np.random.random((2500, 4)) + [0,0,1,1]
     bbox2 = np.random.random((1500, 4)) + [0,0,1,1]
@@ -111,4 +109,3 @@ if __name__ == '__main__':
     bbox1 = np.array([[0,0,50,50],[50,0,100,50]])
     bbox2 = np.array([[25,25,50,50]])
     assert (bbox_iou(bbox1,bbox2) == [[0.25],[0]]).all()
-    print("bbox_iou passed!")

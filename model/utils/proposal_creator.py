@@ -73,4 +73,3 @@ if __name__ == '__main__':
     score = np.random.randn(22500)
     roi = proposal_creater.make_proposal(anchor, delta, score, (600,800), True)
     assert roi.shape == (2000, 4)
-    print("ProposalCreator passed!")

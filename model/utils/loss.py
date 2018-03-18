@@ -54,5 +54,4 @@ if __name__ == '__main__':
     target_delta = Variable(torch.rand(15000, 4))
     anchor_label = Variable((torch.rand(15000)*20).int())
     loss = delta_loss(pred_delta, target_delta, anchor_label, 1)
-    print(loss) #=> Variable: FloatTensor od size 1.
-    print("loss passed!")
+    print(loss) #=> Variable: FloatTensor of size 1.
