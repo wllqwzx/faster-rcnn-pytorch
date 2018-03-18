@@ -43,8 +43,8 @@ class _VGG16Head(nn.Module):
         self.delta = nn.Linear(in_features=4096, out_features=n_class_bg*4)    # Note: predice a delta for each class
         self.score = nn.Linear(in_features=4096, out_features=n_class_bg)
 
-        normal_init(self.delta, 0, 0.001)
-        normal_init(self.score, 0, 0.01)
+        self._normal_init(self.delta, 0, 0.001)
+        self._normal_init(self.score, 0, 0.01)
 
     def forward(self, feature_map, rois, image_size):
         """
@@ -165,7 +165,6 @@ class _VGG16Head(nn.Module):
         class_out = []
         prob_out = []
         # skip class_id = 0 because it is the background class
-
         for t in range(1, self.n_class_bg):
             bbox_for_class_t = bbox_per_class[:,t,:]    #(N, 4)
             prob_for_class_t = prob[:,t]                #(N,)
@@ -189,20 +188,21 @@ class _VGG16Head(nn.Module):
         return bbox_out, class_out, prob_out
     
 
+    def _normal_init(self, m, mean, stddev, truncated=False):
+        """
+        weight initalizer: truncated normal and random normal.
+        """
+        if truncated:
+            m.weight.data.normal_().fmod_(2).mul_(stddev).add_(mean)  # not a perfect approximation
+        else:
+            m.weight.data.normal_(mean, stddev)
+            m.bias.data.zero_()
+
+
+
 
 def _get_resnet50_extractor_and_head():
     pass
-
-def normal_init(m, mean, stddev, truncated=False):
-    """
-    weight initalizer: truncated normal and random normal.
-    """
-    # x is a parameter
-    if truncated:
-        m.weight.data.normal_().fmod_(2).mul_(stddev).add_(mean)  # not a perfect approximation
-    else:
-        m.weight.data.normal_(mean, stddev)
-        m.bias.data.zero_()
 
 
 if __name__ == '__main__':

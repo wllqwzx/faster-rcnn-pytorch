@@ -6,6 +6,7 @@ import numpy as np
 from model.rpn import rpn
 from model.extractor_head import get_vgg16_extractor_and_head
 from model.utils.proposal_target_creator import ProposalTargetCreator
+from model.utils.transform_tools import adjust_image_size, resize_bbox, random_flip, image_normalize
 
 class _Faster_RCNN_Maker(nn.Module):
     def __init__(self, feature_extractor, rpn, head):
@@ -21,7 +22,7 @@ class _Faster_RCNN_Maker(nn.Module):
 
     def loss(self, image, gt_bbox, gt_bbox_label):
         """
-        image: (N=1,3,H,W)
+        image: (C=3,H,W), pixels should be in range 0~1 and normalized.
         gt_bbox: (N2,4)
         gt_bbox_label: (N2,)
         """
@@ -31,32 +32,42 @@ class _Faster_RCNN_Maker(nn.Module):
         assert isinstance(image, np.ndarray)
         assert isinstance(gt_bbox, np.ndarray)
         assert isinstance(gt_bbox_label, np.ndarray)
-        assert image.shape[0] == 1
+        assert len(image.shape) == 3
         assert gt_bbox.shape[0] == gt_bbox_label.shape[0]
         #-------- debug
+
+        original_image_size = image.shape[1:]
+        image, gt_bbox = random_flip(image, gt_bbox, horizontal_random=True)
+        
+        image = adjust_image_size(image)
+        new_image_size = image.shape[1:]
+        gt_bbox = resize_bbox(gt_bbox, original_image_size, new_image_size)
+
+        image = image_normalize(image)
+        image = image.reshape(1, image.shape[0], image.shape[1], image.shape[2])
+
         image = Variable(torch.FloatTensor(image))
         if torch.cuda.is_available():
             image = image.cuda()
 
         features = self.feature_extractor(image)
-        image_size = image.shape[2:]
 
         # rpn loss
-        delta, score, anchor = self.rpn.forward(features, image_size)
-        rpn_loss = self.rpn.loss(delta, score, anchor, gt_bbox, image_size)
+        delta, score, anchor = self.rpn.forward(features, new_image_size)
+        rpn_loss = self.rpn.loss(delta, score, anchor, gt_bbox, new_image_size)
 
         #=====!!!!!
         # print("rpn delta mean:", delta.data.cpu().numpy().mean())
 
         # head loss:
-        roi = self.rpn.predict(delta, score, anchor, image_size)
+        roi = self.rpn.predict(delta, score, anchor, new_image_size)
         sample_roi, target_delta_for_sample_roi, bbox_bg_label_for_sample_roi = self.proposal_target_creator.make_proposal_target(roi, gt_bbox, gt_bbox_label)
 
         #=====!!!!!!
         # print("background:",(bbox_bg_label_for_sample_roi == 0).sum())
         # print("sample_roi number:", sample_roi.shape[0])
 
-        delta_per_class, score = self.head.forward(features, sample_roi, image_size)
+        delta_per_class, score = self.head.forward(features, sample_roi, new_image_size)
 
         #=====!!!!!
         # print("head delta mean:", delta_per_class.data.cpu().numpy().mean())
@@ -76,6 +87,12 @@ class _Faster_RCNN_Maker(nn.Module):
         #---------- debug
         if self.training == True:
             raise Exception("Do not call predict in training mode, you should call .eval() to set the model in eval mode!")
+        original_image_size = image.shape[1:]        
+        image = adjust_image_size(image)
+        new_image_size = image.shape[1:]
+        image = image_normalize(image)
+        image = image.reshape(1, image.shape[0], image.shape[1], image.shape[2])
+        
         image = Variable(torch.FloatTensor(image))
         if torch.cuda.is_available():
             image = image.cuda()
@@ -91,13 +108,11 @@ class _Faster_RCNN_Maker(nn.Module):
         delta_per_class, score = self.head.forward(features, roi, image_size)       
         bbox_out, class_out, prob_out = self.head.predict(roi, delta_per_class, score, image_size, prob_threshold=prob_threshold)
         
+        bbox_out = resize_bbox(bbox_out, new_image_size, original_image_size)
+        
         return bbox_out, class_out, prob_out
 
-    def get_optimizer(self):
-        """
-        return optimizer, It could be overwriten if you want to specify 
-        special optimizer
-        """
+    def get_optimizer(self, is_adam=False):
         lr = 0.001
         params = []
         for key, value in dict(self.named_parameters()).items():

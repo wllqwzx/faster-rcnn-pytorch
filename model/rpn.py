@@ -21,9 +21,10 @@ class rpn(nn.Module):
         self.mid_layer = nn.Conv2d(in_channel, mid_channel, kernel_size=3, stride=1, padding=1) 
         self.score_layer = nn.Conv2d(mid_channel, 2*self.K, kernel_size=1, stride=1, padding=0)
         self.delta_layer = nn.Conv2d(mid_channel, 4*self.K, kernel_size=1, stride=1, padding=0)
-        normal_init(self.mid_layer, 0, 0.01)
-        normal_init(self.score_layer, 0, 0.01)
-        normal_init(self.delta_layer, 0, 0.01)
+        
+        self._normal_init(self.mid_layer, 0, 0.01)
+        self._normal_init(self.score_layer, 0, 0.01)
+        self._normal_init(self.delta_layer, 0, 0.01)
 
         self.proposal_creator = ProposalCreator()
         self.anchor_target_creator = AnchorTargetCreator()
@@ -94,16 +95,15 @@ class rpn(nn.Module):
         return roi
 
 
-def normal_init(m, mean, stddev, truncated=False):
-    """
-    weight initalizer: truncated normal and random normal.
-    """
-    # x is a parameter
-    if truncated:
-        m.weight.data.normal_().fmod_(2).mul_(stddev).add_(mean)  # not a perfect approximation
-    else:
-        m.weight.data.normal_(mean, stddev)
-        m.bias.data.zero_()
+    def _normal_init(self, m, mean, stddev, truncated=False):
+        """
+        weight initalizer: truncated normal and random normal.
+        """
+        if truncated:
+            m.weight.data.normal_().fmod_(2).mul_(stddev).add_(mean)  # not a perfect approximation
+        else:
+            m.weight.data.normal_(mean, stddev)
+            m.bias.data.zero_()
 
 
 if __name__ == '__main__':
