@@ -58,7 +58,7 @@ for epoch in range(15):
 
 model.eval()
 for i in range(len(test_dataset)):
-    img, _, _ = test_dataset[26]
+    img, _, _ = test_dataset[i]
     imgx = img/255
     bbox_out, class_out, prob_out = model.predict(imgx, prob_threshold=0.95)
 

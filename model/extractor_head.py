@@ -169,7 +169,8 @@ class _VGG16Head(nn.Module):
             bbox_for_class_t = bbox_per_class[:,t,:]    #(N, 4)
             prob_for_class_t = prob[:,t]                #(N,)
             mask = prob_for_class_t > prob_threshold    #(N,)
-            print("mask", mask.sum())
+            # debug:
+            # print("mask", mask.sum())
             left_bbox_for_class_t = bbox_for_class_t[mask]  #(N2,4)
             left_prob_for_class_t = prob_for_class_t[mask]  #(N2,)
             keep = py_cpu_nms(left_bbox_for_class_t, score=left_prob_for_class_t)
