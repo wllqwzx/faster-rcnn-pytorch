@@ -1,5 +1,5 @@
 # faster-rcnn-pytorch
-This is an pytorch implementation of faster RCNN written in pure python code.
+This is a pytorch implementation of faster RCNN.
 
 ## Demo
 
