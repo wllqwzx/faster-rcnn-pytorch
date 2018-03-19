@@ -26,9 +26,7 @@ plt.show()
 
 ## Train
 
-### Dataset
-
-In this project, we use the convenient api provided by chainercv to download and load the Pascal VOC2007 dataset, please install it before running the training script.
+This project uses the convenient api provided by chainercv to download and load the Pascal VOC2007 dataset, please install it before running the training script.
 
 ```bash
 $pip3 install chainercv
