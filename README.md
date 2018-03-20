@@ -22,8 +22,6 @@ vis_bbox(img, bbox_out, class_out, prob_out,label_names=voc_bbox_label_names)
 plt.show()
 ```
 
-![](image/example.jpg)
-
 ## Train
 
 This project uses the convenient api provided by chainercv to download and load the Pascal VOC2007 dataset, please install it before running the training script.
