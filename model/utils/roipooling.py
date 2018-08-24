@@ -30,7 +30,7 @@ class RoIPool(nn.Module):
             outputs = outputs.cuda()
 
         for roi_ind, roi in enumerate(rois):
-            batch_ind = int(roi[0].data[0])
+            batch_ind = int(roi[0].data.item())
             roi_start_w, roi_start_h, roi_end_w, roi_end_h = np.round(
                 roi[1:].data.cpu().numpy() * spatial_scale).astype(int)
             roi_width = max(roi_end_w - roi_start_w + 1, 1)
