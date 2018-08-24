@@ -9,7 +9,6 @@ import torch
 from torchnet.meter import AverageValueMeter, MovingAverageValueMeter
 
 from model.faster_rcnn import faster_rcnn
-from model.utils.transform_tools import image_normalize
 
 train_dataset = VOCBboxDataset(year='2007', split='train')
 val_dataset = VOCBboxDataset(year='2007', split='val')
@@ -53,6 +52,14 @@ for epoch in range(15):
         avg_loss.add(loss_value)
         ma20_loss.add(float(loss_value))
         print('[epoch:{}]  [batch:{}/{}]  [sample_loss:{:.4f}]  [avg_loss:{:.4f}]  [ma20_loss:{:.4f}]'.format(epoch, i, len(trainval_dataset), loss_value, avg_loss.value()[0], ma20_loss.value()[0]))
+
+    modelweight = model.state_dict()
+    trainerstate = {
+        'optimizer_state_dict': optimizer.state_dict(),
+        'iters': iters
+    }
+    torch.save(model_weight, "epoch_"+str(epoch)+".modelweight")
+    torch.save(trainerstate, "epoch_"+str(epoch)+".trainerstate")
 
 
 
