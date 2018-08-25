@@ -56,9 +56,9 @@ for epoch in range(15):
     modelweight = model.state_dict()
     trainerstate = {
         'optimizer_state_dict': optimizer.state_dict(),
-        'iters': iters
+        'epoch': epoch
     }
-    torch.save(model_weight, "epoch_"+str(epoch)+".modelweight")
+    torch.save(modelweight, "epoch_"+str(epoch)+".modelweight")
     torch.save(trainerstate, "epoch_"+str(epoch)+".trainerstate")
 
 
