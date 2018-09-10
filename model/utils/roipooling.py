@@ -54,7 +54,6 @@ class RoIPool(nn.Module):
                         outputs[roi_ind, :, ph, pw] = 0
                     else:
                         data = features[batch_ind]
-
                         data_pool = torch.max(data[:, hstart:hend, wstart:wend], 1)[0]
                         outputs[roi_ind, :, ph, pw] = torch.max(data_pool, 1)[0].view(-1)
         #---------- debug
